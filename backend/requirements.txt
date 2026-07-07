@@ -3,3 +3,4 @@ uvicorn[standard]==0.50.2
 sqlalchemy==2.0.51
 psycopg[binary]==3.3.4
 python-dotenv==1.2.2
+yfinance==1.5.1
