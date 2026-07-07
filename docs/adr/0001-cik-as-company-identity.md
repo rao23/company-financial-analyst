@@ -1,0 +1,3 @@
+# Key the Company entity on SEC CIK, not ticker
+
+Tickers are reused after delisting and change on rebrands/relistings, so using ticker as the `companies` primary key risks silently merging two unrelated companies' filings/news/price history under one row years apart. SEC's CIK is a permanent, never-reused identifier and is also the natural key of SEC's own bulk ticker-mapping dataset (`company_tickers.json`), which is the intended ingestion source. `companies.company_id` is keyed on CIK; ticker becomes a mutable, indexed lookup/display attribute, with a separate curated alias table handling brand-name-vs-legal-name search mismatches (e.g. "Google" → Alphabet Inc.).
