@@ -1,12 +1,19 @@
-from fastapi import APIRouter, Depends, Query
+import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import case, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Company, CompanyAlias
+from app.models import Company, CompanyAlias, PriceHistory
 
 router = APIRouter(prefix="/companies", tags=["companies"])
+
+# SEC's XBRL mandate phase-in took effect in 2009 — a fixed constant, not
+# something inferred from how much of our own historical backlog we've
+# ingested. See CONTEXT.md "Pre-2009 Coverage Gap" and DESIGN.md §12.
+XBRL_MANDATE_DATE = datetime.date(2009, 1, 1)
 
 
 class CompanySearchResult(BaseModel):
@@ -60,3 +67,47 @@ def search_companies(
     )
     rows = db.execute(stmt).all()
     return [CompanySearchResult(cik=r.cik, ticker=r.ticker, name=r.name) for r in rows]
+
+
+class CompanyDetail(BaseModel):
+    cik: int
+    ticker: str
+    name: str
+    sector: str | None
+    gics: str | None
+    ipo_date: datetime.date | None
+    price_coverage_start: datetime.date | None
+    has_pre_2009_gap: bool | None
+
+
+@router.get("/{cik}", response_model=CompanyDetail)
+def get_company(cik: int, db: Session = Depends(get_db)) -> CompanyDetail:
+    """Company header info for the record page, including the Pre-2009
+    Coverage Gap flag (§12) — computed from price_history's earliest date
+    vs. the fixed XBRL mandate date, not stored on the Company row.
+    `has_pre_2009_gap` is None (unknown), not False, when we have no price
+    history for this company yet — that's a different state from "checked
+    and there's no gap."
+    """
+    company = db.get(Company, cik)
+    if company is None:
+        raise HTTPException(status_code=404, detail=f"No company with CIK {cik}")
+
+    price_coverage_start = db.execute(
+        select(func.min(PriceHistory.date)).where(PriceHistory.company_cik == cik)
+    ).scalar_one()
+
+    has_pre_2009_gap = (
+        price_coverage_start < XBRL_MANDATE_DATE if price_coverage_start is not None else None
+    )
+
+    return CompanyDetail(
+        cik=company.cik,
+        ticker=company.ticker,
+        name=company.name,
+        sector=company.sector,
+        gics=company.gics,
+        ipo_date=company.ipo_date,
+        price_coverage_start=price_coverage_start,
+        has_pre_2009_gap=has_pre_2009_gap,
+    )
