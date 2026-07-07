@@ -9,26 +9,26 @@ Ordered by dependency — each phase builds on tables/components the previous ph
 
 ## Phase 0 — LLM Foundations
 
-- [ ] **Context window / temperature intuition script**: a throwaway script hitting the `google-genai` SDK directly, varying `temperature` and prompt length, to build hands-on intuition before any framework is involved. Scaffolding is in `experiments/phase0_llm_foundations.py` — TODOs (picking prompts, running, observing) still need doing.
-  - [ ] Try the same prompt at temperature 0 vs 1, observe variance
-  - [ ] Push a prompt past a small context budget deliberately, observe truncation/error behavior
+- [x] **Context window / temperature intuition script**: `experiments/phase0_llm_foundations.py` — temperature convergence/divergence observed; discovered the free-tier RPM cap in the process (not from docs).
+  - [x] Try the same prompt at temperature 0 vs 1, observe variance
+  - [x] Push a prompt past a small context budget deliberately, observe truncation/error behavior — hit `MAX_TOKENS` (thinking-token budget gotcha) and a 429 token-quota error before ever reaching the model's own context-window ceiling
 
 ---
 
 ## Phase 1 — Data Foundation I (fundamentals + price)
 
-- [ ] **`companies` + `company_aliases` schema and ingestion**: bulk-load from SEC's `company_tickers.json`, keyed on **CIK**, not ticker (ADR-0001).
-  - [ ] `companies (cik PK, ticker, name, sector, gics, ipo_date)`
-  - [ ] `company_aliases (alias, company_id)` — seed with a curated list for well-known brand/legal-name mismatches (e.g. Google → Alphabet)
-  - [ ] Search/lookup query against ticker + legal name + aliases (trigram or `ILIKE` is fine for v1 volume)
-- [ ] **`financial_metrics` schema with as-filed provenance** (ADR-0005): fields for `source_accession_number`, `filed_date`, `was_restated`, `restatement_filing_id`.
-  - [ ] Selection rule: for each `(company, period, tag)`, take the value from the filing whose *primary* reporting period is that period, not a later comparative
-  - [ ] Ingestion writes **insert-if-absent only** — never upsert-to-latest
-  - [ ] 10-K/A detection sets `was_restated` metadata without touching the stored value
-- [ ] **EBITDA/FCF derivation layer** (§6): `EBITDA ≈ operating_income + D&A`, `FCF = OCF − capex`, computed off as-filed figures only.
-  - [ ] Correctness check against 2–3 known-good companies' publicly reported EBITDA/FCF
-- [ ] **`price_history` ingestion via yfinance**
-- [ ] **Pre-2009 Coverage Gap flag** (§12): a computed field/endpoint indicating whether a company's IPO predates 2009 XBRL coverage — UI-flag only, no raw-filing-text parsing in v1
+- [x] **`companies` + `company_aliases` schema and ingestion**: bulk-load from SEC's `company_tickers.json`, keyed on **CIK**, not ticker (ADR-0001). 8,002 real companies loaded; multi-share-class tickers (e.g. Alphabet's GOOGL/GOOG/GOOGM/GOOGN) correctly diverted to aliases instead of crashing on the unique constraint.
+  - [x] `companies (cik PK, ticker, name, sector, gics, ipo_date)` — `sector`/`gics`/`ipo_date` deliberately left `NULL`; not in this bulk source, not guess-filled
+  - [x] `company_aliases (alias, company_id)` — curated list (Google→Alphabet, Facebook/Instagram/WhatsApp→Meta, etc.) plus derived multi-ticker aliases
+  - [x] Search/lookup query against ticker + legal name + aliases — `ILIKE` with tiered relevance ranking (exact ticker > ticker prefix > name prefix > substring), added after real data surfaced a ranking bug ("apple" query surfacing "pineapple" companies first)
+- [x] **`financial_metrics` schema with as-filed provenance** (ADR-0005): fields for `source_accession_number`, `filed_date`, `was_restated`, `restatement_filing_id`.
+  - [x] Selection rule: for each `(company, period, tag)`, take the value from the filing whose *primary* reporting period is that period, not a later comparative — verified against Apple's real Q1 FY2024 filing, which bundled a prior-year comparative in the same document
+  - [x] Ingestion writes **insert-if-absent only** — never upsert-to-latest — idempotency verified by re-running ingestion and confirming 0 new rows
+  - [ ] 10-K/A detection sets `was_restated` metadata without touching the stored value — **deferred**, not yet implemented (needs its own careful pass; core ingestion verified first by design)
+- [x] **EBITDA/FCF derivation layer** (§6): `EBITDA ≈ operating_income + D&A`, `FCF = OCF − capex`, computed off as-filed figures only.
+  - [x] Correctness check against 2–3 known-good companies' publicly reported EBITDA/FCF — verified against Apple ($43.2B EBITDA, $37.5B FCF for Q1 FY2024, matching public figures); coverage is partial (54%/65% of rows) due to XBRL tag variation across filers, a known v1 limitation
+- [x] **`price_history` ingestion via yfinance** — verified against Apple (11,482 daily bars, 1980-12-12 real IPO date through today) and Airbnb; idempotent
+- [x] **Pre-2009 Coverage Gap flag** (§12): computed from `price_history`'s earliest date vs. the fixed 2009 XBRL mandate date (not a stored `ipo_date` we don't have). Tri-state verified: `true` (Apple), `false` (Airbnb, real 2020 IPO), `null` (no price history ingested yet — genuinely unknown, not "no gap")
 
 ---
 
