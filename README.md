@@ -18,7 +18,7 @@ Backend data foundation complete through Phase 2. See `docs/TASKS.md` for the fu
 - **Phase 3** (next) — 8-K ingestion, Finnhub news client
 - **Phase 4+** — LangGraph agent, eval harness, frontend — not started
 
-Tests now cover the deterministic logic added in Phase 2 (chunking, EBITDA/FCF derivation, retrieval filters) — see `backend/tests/`. Going forward, every phase ships with test coverage before being marked complete.
+Tests now cover the deterministic logic across Phase 1 and 2 (company/alias ingestion, XBRL tag selection, EBITDA/FCF derivation, price history, search ranking, coverage gap, chunking, embedding, retrieval) — see `backend/tests/`. Going forward, every phase ships with test coverage before being marked complete.
 
 ## Setup
 

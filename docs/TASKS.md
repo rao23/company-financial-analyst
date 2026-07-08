@@ -21,14 +21,18 @@ Ordered by dependency — each phase builds on tables/components the previous ph
   - [x] `companies (cik PK, ticker, name, sector, gics, ipo_date)` — `sector`/`gics`/`ipo_date` deliberately left `NULL`; not in this bulk source, not guess-filled
   - [x] `company_aliases (alias, company_id)` — curated list (Google→Alphabet, Facebook/Instagram/WhatsApp→Meta, etc.) plus derived multi-ticker aliases
   - [x] Search/lookup query against ticker + legal name + aliases — `ILIKE` with tiered relevance ranking (exact ticker > ticker prefix > name prefix > substring), added after real data surfaced a ranking bug ("apple" query surfacing "pineapple" companies first)
+  - [x] `backend/tests/test_sec_companies.py` (canonical-ticker-per-CIK, extra-ticker aliasing, curated aliases, idempotent rerun) + `backend/tests/test_companies_api.py` (ranking tiers, alias search, dedup on multi-alias companies, `/companies/{cik}` 404 and Pre-2009 Coverage Gap tri-state) — 13 tests reproducing the ranking and dedup bugs found during manual testing.
 - [x] **`financial_metrics` schema with as-filed provenance** (ADR-0005): fields for `source_accession_number`, `filed_date`, `was_restated`, `restatement_filing_id`.
   - [x] Selection rule: for each `(company, period, tag)`, take the value from the filing whose *primary* reporting period is that period, not a later comparative — verified against Apple's real Q1 FY2024 filing, which bundled a prior-year comparative in the same document
   - [x] Ingestion writes **insert-if-absent only** — never upsert-to-latest — idempotency verified by re-running ingestion and confirming 0 new rows
   - [ ] 10-K/A detection sets `was_restated` metadata without touching the stored value — **deferred**, not yet implemented (needs its own careful pass; core ingestion verified first by design)
+  - [x] `backend/tests/test_sec_financials.py`: 10 tests against in-memory synthetic zips covering form/CIK filtering, prior-year-comparative exclusion, segment/co-registrant exclusion, empty-value skipping, and tag-priority resolution (modern tag wins over a fallback even when the fallback appears first in the file).
 - [x] **EBITDA/FCF derivation layer** (§6): `EBITDA ≈ operating_income + D&A`, `FCF = OCF − capex`, computed off as-filed figures only.
   - [x] Correctness check against 2–3 known-good companies' publicly reported EBITDA/FCF — verified against Apple ($43.2B EBITDA, $37.5B FCF for Q1 FY2024, matching public figures); coverage is partial (54%/65% of rows) due to XBRL tag variation across filers, a known v1 limitation
+  - [x] `backend/tests/test_ebitda_fcf.py`: partial-component handling and idempotent rerun.
 - [x] **`price_history` ingestion via yfinance** — verified against Apple (11,482 daily bars, 1980-12-12 real IPO date through today) and Airbnb; idempotent
-- [x] **Pre-2009 Coverage Gap flag** (§12): computed from `price_history`'s earliest date vs. the fixed 2009 XBRL mandate date (not a stored `ipo_date` we don't have). Tri-state verified: `true` (Apple), `false` (Airbnb, real 2020 IPO), `null` (no price history ingested yet — genuinely unknown, not "no gap")
+  - [x] `backend/tests/test_price_history.py`: unknown ticker, empty yfinance response, multi-row insert, idempotent rerun — yfinance mocked out.
+- [x] **Pre-2009 Coverage Gap flag** (§12): computed from `price_history`'s earliest date vs. the fixed 2009 XBRL mandate date (not a stored `ipo_date` we don't have). Tri-state verified: `true` (Apple), `false` (Airbnb, real 2020 IPO), `null` (no price history ingested yet — genuinely unknown, not "no gap") — all three states covered in `test_companies_api.py`.
 
 ---
 
@@ -39,7 +43,7 @@ Ordered by dependency — each phase builds on tables/components the previous ph
   - [x] Confirm the pgvector query operator matches the embedding model's training objective (cosine `<=>`, not L2 `<->`, for bge/e5) — confirmed earlier via `similarity_fn_name=cosine` on the loaded model.
 - [x] **Metadata-filtered-then-ANN retrieval**: company + date range filter always applied before the ANN search — never a global vector search. `search_filing_chunks()` joins `Filing` and filters on `company_cik` + `Filing.filed_date` range before ordering by `cosine_distance`.
 - [x] **Quarter-scoped retrieval smoke test**: confirm a query about one company/date range never surfaces another company's chunks. Verified against real Apple 10-Q chunks: relevant in-range query returns substantively relevant chunks; out-of-range date and wrong CIK both correctly return 0 results.
-- [x] **Automated test suite** (`backend/tests/`): 13 tests covering chunking (TOC dedup, cross-reference exclusion, section ordering, sub-chunking threshold), EBITDA/FCF derivation (partial components, idempotent rerun), and retrieval filters (date range, company scoping, missing-embedding exclusion, similarity ranking, top_k). Runs against a dedicated `earnings_timeline_test` database (`backend/tests/conftest.py`), truncated between tests — never the dev DB.
+- [x] **Automated test suite** (`backend/tests/`): chunking (TOC dedup, cross-reference exclusion, section ordering, sub-chunking threshold), embedding pipeline (`test_embed_chunks.py`: skips already-embedded rows, batches correctly), and retrieval filters (date range, company scoping, missing-embedding exclusion, similarity ranking, top_k). Runs against a dedicated `earnings_timeline_test` database (`backend/tests/conftest.py`), truncated between tests — never the dev DB. 46 tests total across Phase 1+2 as of this writing.
 
 ---
 
