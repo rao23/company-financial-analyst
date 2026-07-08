@@ -18,7 +18,8 @@ from app.rag.chunking import chunk_filing
 from app.rag.fetch_filing import fetch_filing_text, get_filing_metadata
 
 
-def ingest_filing(cik: int, accession_number: str) -> None:
+def ingest_filing(cik: int, accession_number: str) -> bool:
+    """Returns True if a new Filing was ingested, False if it already existed."""
     db = SessionLocal()
     try:
         existing = db.execute(
@@ -26,7 +27,7 @@ def ingest_filing(cik: int, accession_number: str) -> None:
         ).scalar_one_or_none()
         if existing is not None:
             print(f"Filing {accession_number} already ingested (filing_id={existing.id}); skipping.")
-            return
+            return False
 
         metadata = get_filing_metadata(cik, accession_number)
         raw_text, source_url = fetch_filing_text(cik, accession_number, metadata["primary_document"])
@@ -55,6 +56,7 @@ def ingest_filing(cik: int, accession_number: str) -> None:
             )
         db.commit()
         print(f"Ingested {accession_number}: filing_id={filing.id}, {len(chunks)} chunks.")
+        return True
     finally:
         db.close()
 

@@ -53,6 +53,28 @@ def get_filing_metadata(cik: int, accession_number: str) -> dict:
     raise ValueError(f"Accession {accession_number} not found in recent filings for CIK {cik}")
 
 
+def list_filings_by_form(cik: int, form: str) -> list[dict]:
+    """List every filing of a given form type (e.g. "8-K") for a CIK, from
+    the same `recent` filings the submissions API exposes to
+    get_filing_metadata. Same pagination caveat: `recent` only covers a
+    company's most recent filings, not its full history — fine for now,
+    same limitation as get_filing_metadata.
+    """
+    padded_cik = f"{cik:010d}"
+    data = json.loads(_get(f"https://data.sec.gov/submissions/CIK{padded_cik}.json"))
+    recent = data["filings"]["recent"]
+    return [
+        {
+            "accession_number": recent["accessionNumber"][i],
+            "report_date": recent["reportDate"][i],
+            "filed_date": recent["filingDate"][i],
+            "primary_document": recent["primaryDocument"][i],
+        }
+        for i, filed_form in enumerate(recent["form"])
+        if filed_form == form
+    ]
+
+
 def fetch_filing_text(cik: int, accession_number: str, primary_document: str) -> tuple[str, str]:
     """Returns (raw_text, source_url). `primary_document` comes from
     get_filing_metadata — passed in rather than looked up again here so

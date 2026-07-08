@@ -10,15 +10,17 @@ RAG over SEC filings (structural chunking, quarter/date-scoped pgvector retrieva
 
 ## Status
 
-Backend data foundation complete through Phase 2. See `docs/TASKS.md` for the full checklist.
+Backend data foundation complete through Phase 3. See `docs/TASKS.md` for the full checklist.
 
 - **Phase 0** — Gemini API foundations (`experiments/phase0_llm_foundations.py`)
 - **Phase 1** — Company/ticker ingestion, XBRL financial metrics, EBITDA/FCF derivation, price history, Pre-2009 Coverage Gap flag
 - **Phase 2** — Filing fetch + Item-heading chunking, local embedding pipeline (pgvector), metadata-filtered retrieval
-- **Phase 3** (next) — 8-K ingestion, Finnhub news client
-- **Phase 4+** — LangGraph agent, eval harness, frontend — not started
+- **Phase 3** — 8-K ingestion, Finnhub news client + window-dedup, `news_articles`/`news_chunks` schema
+- **Phase 4+** (next) — LangGraph agent, eval harness, frontend — not started
 
-Tests now cover the deterministic logic across Phase 1 and 2 (company/alias ingestion, XBRL tag selection, EBITDA/FCF derivation, price history, search ranking, coverage gap, chunking, embedding, retrieval) — see `backend/tests/`. Going forward, every phase ships with test coverage before being marked complete.
+Tests cover the deterministic logic across Phase 1–3 (company/alias ingestion, XBRL tag selection, EBITDA/FCF derivation, price history, search ranking, coverage gap, chunking, embedding, retrieval, 8-K ingestion, Finnhub news + window dedup) — see `backend/tests/`. Every phase ships with test coverage before being marked complete.
+
+Requires a free [Finnhub](https://finnhub.io) API key for Phase 3 news ingestion — add it to the root `.env` as `FINNHUB_API_KEY`.
 
 ## Setup
 
@@ -50,7 +52,11 @@ python -m app.ingestion.price_history <TICKER>               # e.g. AAPL
 
 # Phase 2 — filings, chunking, embeddings
 python -m app.ingestion.sec_filings <CIK> <ACCESSION_NUMBER>  # e.g. 320193 0000320193-24-000006
-python -m app.rag.embed_chunks                                # embed any chunks missing a vector
+python -m app.rag.embed_chunks                                # embed any filing_chunks/news_chunks missing a vector
+
+# Phase 3 — 8-Ks, news
+python -m app.ingestion.sec_8k <CIK>                           # ingest every 8-K on file for a company
+python -m app.ingestion.finnhub_news <TICKER> <FROM:YYYY-MM-DD> <TO:YYYY-MM-DD>
 ```
 
 ## Running the API

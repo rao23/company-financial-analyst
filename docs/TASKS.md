@@ -49,11 +49,12 @@ Ordered by dependency — each phase builds on tables/components the previous ph
 
 ## Phase 3 — Data Foundation II (events + news)
 
-- [ ] **8-K ingestion**: EDGAR submissions API filtered to form type 8-K.
-- [ ] **Finnhub news client**: `company-news` endpoint, ticker + date-scoped.
-  - [ ] Ingestion trigger: scheduled batch for watchlist companies, on-demand-but-cached for first search of any other company
-  - [ ] Never re-fetch a window already pulled
-- [ ] **`news_articles` + `news_chunks` schema**: chunked by paragraph, `source_type=news`, `trust_level=unofficial`
+- [x] **8-K ingestion**: EDGAR submissions API filtered to form type 8-K (`app/rag/fetch_filing.py::list_filings_by_form`, `app/ingestion/sec_8k.py`). Reuses the exact fetch→chunk→write pipeline from `sec_filings.py` — no separate 8-K chunking logic needed, since an 8-K's own Item numbering ("Item 5.02", "Item 9.01") doesn't collide with `KNOWN_10Q_ITEMS` titles and correctly falls through to whole-document sub-chunking, which is also the right outcome for a filing that's already 1-3 pages about one event. Verified against all 104 real 8-Ks on file for Apple (CIK 320193), spanning 2015–2026, 2–9 chunks each.
+- [x] **Finnhub news client**: `company-news` endpoint, ticker + date-scoped (`app/ingestion/finnhub_news.py`). `body` stores Finnhub's `summary` field — the free tier doesn't provide full article text, a known v1 constraint. Verified against real Apple news: a 2024 window returned 0 articles (free-tier historical depth limit — matches the already-documented DESIGN.md §12 limitation), a recent 30-day window returned 245 real articles, all chunked and embedded.
+  - [x] Ingestion trigger: on-demand, `ingest_news(ticker, date_from, date_to)` — scheduled-batch-for-watchlist-companies is a future scheduling concern layered on top of the same function, not separate ingestion logic.
+  - [x] Never re-fetch a window already pulled: `news_fetch_log` table + `_window_already_fetched()` check before every Finnhub call. Verified for real: re-running a narrower window inside an already-fetched range correctly skipped the API call.
+- [x] **`news_articles` + `news_chunks` schema**: chunked by paragraph (`app/rag/news_chunking.py::chunk_news_body`), `source_type=news`, `trust_level=unofficial` (`app/models/news.py`). `embed_chunks.py` extended to embed both `filing_chunks` and `news_chunks` in one run.
+- [x] **Automated test suite**: `test_sec_8k.py`, `test_finnhub_news.py` (window-dedup edge cases: full coverage skip, partial-overlap re-fetch, idempotent article rows), `test_news_chunking.py`, plus `test_embed_chunks.py` extended for `NewsChunk`. 63 tests total across Phase 1–3 as of this writing.
 
 ---
 

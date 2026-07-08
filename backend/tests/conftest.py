@@ -28,6 +28,9 @@ from app.models import (  # noqa: E402, F401 — registers every table on Base.m
     Filing,
     FilingChunk,
     FinancialMetric,
+    NewsArticle,
+    NewsChunk,
+    NewsFetchLog,
     PriceHistory,
 )
 
