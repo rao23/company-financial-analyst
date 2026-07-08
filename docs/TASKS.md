@@ -34,11 +34,11 @@ Ordered by dependency — each phase builds on tables/components the previous ph
 
 ## Phase 2 — Embeddings, Vector DB, RAG
 
-- [ ] **`filings` + `filing_chunks` schema and chunking** (§7): split by structural Item heading first, sub-chunk only where sections are long.
-- [ ] **Local embedding pipeline**: `sentence-transformers` (bge/e5), store in pgvector with `company_id`, `source_type`, `filed_date`.
-  - [ ] Confirm the pgvector query operator matches the embedding model's training objective (cosine `<=>`, not L2 `<->`, for bge/e5)
-- [ ] **Metadata-filtered-then-ANN retrieval**: company + date range filter always applied before the ANN search — never a global vector search.
-- [ ] **Quarter-scoped retrieval smoke test**: confirm a query about one company/date range never surfaces another company's chunks
+- [x] **`filings` + `filing_chunks` schema and chunking** (§7): split by structural Item heading first, sub-chunk only where sections are long. Verified against Apple's real 10-Q (accession 0000320193-24-000006, CIK 320193): `sec_filings.py` fetches + chunks + writes `Filing`/`FilingChunk` rows end-to-end, producing 49 chunks across 11 correctly-identified sections (TOC duplicates and in-text cross-references correctly excluded).
+- [x] **Local embedding pipeline**: `sentence-transformers` (bge/e5), store in pgvector with `company_id`, `source_type`, `filed_date`. `embed_chunks.py` run for real against the 49 Apple chunks above — all 49 embedded (384-dim, confirmed via DB query).
+  - [x] Confirm the pgvector query operator matches the embedding model's training objective (cosine `<=>`, not L2 `<->`, for bge/e5) — confirmed earlier via `similarity_fn_name=cosine` on the loaded model.
+- [x] **Metadata-filtered-then-ANN retrieval**: company + date range filter always applied before the ANN search — never a global vector search. `search_filing_chunks()` joins `Filing` and filters on `company_cik` + `Filing.filed_date` range before ordering by `cosine_distance`.
+- [x] **Quarter-scoped retrieval smoke test**: confirm a query about one company/date range never surfaces another company's chunks. Verified against real Apple 10-Q chunks: relevant in-range query returns substantively relevant chunks; out-of-range date and wrong CIK both correctly return 0 results.
 
 ---
 

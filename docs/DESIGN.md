@@ -182,6 +182,7 @@ Before building the LangGraph version, do a short (~1 hour) throwaway exercise h
 - EBITDA/FCF are derived, not directly filed — derivation logic itself needs a small correctness check against a few known-good companies before trusting it broadly.
 - Finnhub's historical news depth for older events isn't guaranteed to be exhaustive — treat news coverage as supplementary, not a complete historical record.
 - Not every price move has a discoverable single cause — the agent is expected to say so rather than fabricate one; this is a feature of the design (see §8, §9), not a gap to "fix" away.
+- Filing text extraction (§7) drops images entirely — `get_text()` only walks text nodes, so content that exists only in an image (most notably 10-K "Stock Performance Graph" sections, occasionally MD&A charts) is invisible to chunking/embedding/the agent. Not treated as a gap worth solving: the numbers that matter for this project come from XBRL facts (§5/§6) and native-HTML tables (lossy but present as flattened text), not from chart images, and price history is already sourced directly from `yfinance`.
 
 ---
 

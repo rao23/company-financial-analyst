@@ -22,29 +22,44 @@ def _get(url: str) -> bytes:
         return response.read()
 
 
-def get_primary_document_filename(cik: int, accession_number: str) -> str:
-    """Look up which file is the primary document (not an exhibit).
+def get_filing_metadata(cik: int, accession_number: str) -> dict:
+    """Look up a filing's form/period/filed-date/primary-document from
+    SEC's submissions API — not filename guessing, since exhibits live
+    alongside the primary document in the same directory.
 
     Note: SEC's submissions API only lists a company's most `recent`
     filings inline; older ones are paginated into separate files
     referenced by `filings.files` in the same JSON. Not handled here yet
     — fine for now since we're fetching a recent test filing, but a
     limitation worth knowing about before this is used for bulk backfill.
+
+    `report_date` here can differ by a day or two from the `period` value
+    financial_metrics stores for the same filing (from a different SEC
+    bulk source, the Financial Statement Data Sets) — a real quirk of
+    SEC's own data, not a bug. Not reconciled here; fine for RAG retrieval,
+    which doesn't need day-exact period matching between the two tables.
     """
     padded_cik = f"{cik:010d}"
     data = json.loads(_get(f"https://data.sec.gov/submissions/CIK{padded_cik}.json"))
     recent = data["filings"]["recent"]
     for i, acc in enumerate(recent["accessionNumber"]):
         if acc == accession_number:
-            return recent["primaryDocument"][i]
+            return {
+                "form": recent["form"][i],
+                "report_date": recent["reportDate"][i],
+                "filed_date": recent["filingDate"][i],
+                "primary_document": recent["primaryDocument"][i],
+            }
     raise ValueError(f"Accession {accession_number} not found in recent filings for CIK {cik}")
 
 
-def fetch_filing_text(cik: int, accession_number: str) -> tuple[str, str]:
-    """Returns (raw_text, source_url)."""
-    primary_doc = get_primary_document_filename(cik, accession_number)
+def fetch_filing_text(cik: int, accession_number: str, primary_document: str) -> tuple[str, str]:
+    """Returns (raw_text, source_url). `primary_document` comes from
+    get_filing_metadata — passed in rather than looked up again here so
+    callers that already fetched metadata don't hit the submissions API
+    twice."""
     accession_no_dashes = accession_number.replace("-", "")
-    url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_no_dashes}/{primary_doc}"
+    url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_no_dashes}/{primary_document}"
 
     html = _get(url)
     soup = BeautifulSoup(html, "html.parser")

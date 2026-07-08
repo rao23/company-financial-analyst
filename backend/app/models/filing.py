@@ -1,10 +1,17 @@
 import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.company import Company  # noqa: F401 — resolves the relationship() string ref
+
+# BAAI/bge-small-en-v1.5's output dimension — confirmed from the model's
+# published config.json, not guessed. If the embedding model ever changes,
+# this column width has to change with it (a new model = a new column, in
+# practice, since existing vectors aren't comparable across models).
+EMBEDDING_DIM = 384
 
 
 class Filing(Base):
@@ -33,10 +40,12 @@ class Filing(Base):
 class FilingChunk(Base):
     """One retrievable chunk of a filing — the unit RAG retrieval returns.
 
-    `embedding` isn't added yet; that's the next task (local embedding
-    pipeline + pgvector column). `source_type`/`trust_level` are fixed for
-    every row here since filings are always official — the columns exist
-    so filing_chunks and news_chunks can be queried/weighted uniformly.
+    `embedding` is nullable: rows exist as soon as chunking runs, but are
+    only embedded once the embedding pipeline processes them — mirrors the
+    same "populate now, derive later" pattern as financial_metrics'
+    ebitda/fcf. `source_type`/`trust_level` are fixed for every row here
+    since filings are always official — the columns exist so filing_chunks
+    and news_chunks can be queried/weighted uniformly.
     """
 
     __tablename__ = "filing_chunks"
@@ -48,5 +57,6 @@ class FilingChunk(Base):
     chunk_text: Mapped[str] = mapped_column(Text)
     source_type: Mapped[str] = mapped_column(String(20), default="filing")
     trust_level: Mapped[str] = mapped_column(String(20), default="official")
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
 
     filing: Mapped["Filing"] = relationship(back_populates="chunks")
