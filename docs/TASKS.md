@@ -3,7 +3,7 @@
 Generated from: `docs/DESIGN.md` (§11 Build Plan), `docs/adr/0001`–`0009`, `CONTEXT.md`
 Date: 2026-07-07
 
-Ordered by dependency — each phase builds on tables/components the previous phase created. Within a phase, tasks are independently buildable/verifiable. Per `CLAUDE.md`: every meaningful change to prompts, retrieval logic, or the agent must pass the eval harness (Phase 5) before being treated as an improvement — that gate applies to everything in Phase 4 onward, retroactively, as those phases evolve.
+Ordered by dependency — each phase builds on tables/components the previous phase created. Within a phase, tasks are independently buildable/verifiable. Per `CLAUDE.md`: every meaningful change to prompts, retrieval logic, or the agent must pass the eval harness (Phase 5) before being treated as an improvement — that gate applies to everything in Phase 4 onward, retroactively, as those phases evolve. Separately, every phase from Phase 2 onward ships with `backend/tests/` coverage for its deterministic logic before being marked complete — not just manual verification against real data.
 
 ---
 
@@ -39,6 +39,7 @@ Ordered by dependency — each phase builds on tables/components the previous ph
   - [x] Confirm the pgvector query operator matches the embedding model's training objective (cosine `<=>`, not L2 `<->`, for bge/e5) — confirmed earlier via `similarity_fn_name=cosine` on the loaded model.
 - [x] **Metadata-filtered-then-ANN retrieval**: company + date range filter always applied before the ANN search — never a global vector search. `search_filing_chunks()` joins `Filing` and filters on `company_cik` + `Filing.filed_date` range before ordering by `cosine_distance`.
 - [x] **Quarter-scoped retrieval smoke test**: confirm a query about one company/date range never surfaces another company's chunks. Verified against real Apple 10-Q chunks: relevant in-range query returns substantively relevant chunks; out-of-range date and wrong CIK both correctly return 0 results.
+- [x] **Automated test suite** (`backend/tests/`): 13 tests covering chunking (TOC dedup, cross-reference exclusion, section ordering, sub-chunking threshold), EBITDA/FCF derivation (partial components, idempotent rerun), and retrieval filters (date range, company scoping, missing-embedding exclusion, similarity ranking, top_k). Runs against a dedicated `earnings_timeline_test` database (`backend/tests/conftest.py`), truncated between tests — never the dev DB.
 
 ---
 

@@ -22,6 +22,7 @@ Software engineer at Google Cloud (Data & Analytics), 3-4 years experience, tran
 
 - README, `requirements.txt` (pinned), clear module structure, `.gitignore` — self-contained and cloneable.
 - Every meaningful change to prompts, retrieval logic, or the agent should be checked against the eval harness (`docs/DESIGN.md` §9) before being treated as an improvement — this is a merge-gate discipline, not optional.
+- Every phase ships with `backend/tests/` coverage for its deterministic logic (ingestion parsing/filtering, derivation math, chunking, retrieval filters) before being marked complete in `docs/TASKS.md` — not just manual verification against real data. Tests run against a dedicated `earnings_timeline_test` Postgres database (see `backend/tests/conftest.py`), never the dev DB. This is separate from the eval harness above, which judges agent/prompt/retrieval *quality*, not code correctness.
 - This project is meant to be pushed to GitHub with a clean README — flag it if that hasn't happened yet once there's real code.
 
 ## Project: Earnings Timeline AI
