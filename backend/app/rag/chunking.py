@@ -21,6 +21,9 @@ filings before trusting this broadly — formatting conventions vary some
 across filers and years.
 """
 
+import re
+import unicodedata
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # TODO(you): the threshold for "long enough to need sub-chunking" should
@@ -31,15 +34,85 @@ LONG_SECTION_THRESHOLD = 1500
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 200
 
+# Standard 10-Q Item numbers/titles (Regulation S-K). A list of (number,
+# title) pairs, not a dict keyed by number — numbers repeat across Part I
+# (financial-statement items) and Part II (other information) with
+# different titles, e.g. Item 1 is "Financial Statements" in Part I but
+# "Legal Proceedings" in Part II.
+#
+# TODO(you): 10-Ks use an entirely different Item set (Item 1 Business,
+# Item 7 MD&A, Item 8 Financial Statements, etc.) — this list only covers
+# 10-Qs. Add a KNOWN_10K_ITEMS list before chunking 10-Ks.
+KNOWN_10Q_ITEMS: list[tuple[str, str]] = [
+    ("1", "Financial Statements"),
+    ("2", "Management's Discussion and Analysis"),
+    ("3", "Quantitative and Qualitative Disclosures About Market Risk"),
+    ("4", "Controls and Procedures"),
+    ("1", "Legal Proceedings"),
+    ("1A", "Risk Factors"),
+    ("2", "Unregistered Sales of Equity Securities"),
+    ("3", "Defaults Upon Senior Securities"),
+    ("4", "Mine Safety Disclosures"),
+    ("5", "Other Information"),
+    ("6", "Exhibits"),
+]
+
+_ITEM_CANDIDATE = re.compile(r"Item\s+(\d+[A-Za-z]?)\.\s*", re.IGNORECASE)
+_PEEK_WINDOW = 80
+
+
+def _normalize(text: str) -> str:
+    """Collapse whitespace (including \xa0 non-breaking spaces from HTML)
+    and normalize curly quotes to straight ones, so a hardcoded title like
+    "Management's" matches the real extracted text's "Management's"."""
+    text = text.replace("’", "'").replace("‘", "'")
+    text = unicodedata.normalize("NFKD", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
 
 def split_by_item_heading(raw_text: str) -> list[tuple[str, str]]:
     """Split filing text into (section_heading, section_text) pairs.
 
-    TODO(you): implement this. Find real section-heading positions (see
-    the module docstring for how to distinguish them from TOC entries and
-    cross-references), then slice raw_text between consecutive headings.
+    Finds every "Item N." occurrence, then only treats it as a real
+    section boundary if the text immediately following it starts with a
+    known title for that item number. This is what rejects table-of-
+    contents entries (nothing meaningful follows) and in-text
+    cross-references (followed by unrelated prose, not the section's
+    actual title) — see the module docstring for real examples of each.
     """
-    raise NotImplementedError("TODO: split raw_text into Item-heading sections")
+    # label -> start_position. A table-of-contents entry lists the title
+    # right after the item number too (e.g. "Item 1.\nFinancial
+    # Statements\n1\n" — number, title, page number), which passes the
+    # same "title immediately follows" check as a real heading. Since
+    # SEC filings always place the TOC before the actual content, plain
+    # dict assignment while iterating in document order keeps only the
+    # *last* (real) occurrence of each label — the TOC entries get
+    # silently overwritten.
+    last_position_by_label: dict[str, int] = {}
+
+    for match in _ITEM_CANDIDATE.finditer(raw_text):
+        number = match.group(1)
+        peek = _normalize(raw_text[match.end() : match.end() + _PEEK_WINDOW])
+
+        for known_number, known_title in KNOWN_10Q_ITEMS:
+            if number.upper() != known_number.upper():
+                continue
+            if peek.lower().startswith(known_title.lower()):
+                last_position_by_label[f"Item {number}. {known_title}"] = match.start()
+                break
+
+    if not last_position_by_label:
+        return [("Full Text", raw_text)]
+
+    confirmed = sorted(last_position_by_label.items(), key=lambda pair: pair[1])
+
+    sections = []
+    for i, (label, start) in enumerate(confirmed):
+        end = confirmed[i + 1][1] if i + 1 < len(confirmed) else len(raw_text)
+        sections.append((label, raw_text[start:end].strip()))
+
+    return sections
 
 
 def sub_chunk_section(section_text: str) -> list[str]:
