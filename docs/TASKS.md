@@ -60,7 +60,7 @@ Ordered by dependency — each phase builds on tables/components the previous ph
 
 ## Phase 4 — Agent (LangGraph, tool use, expanding-window retrieval)
 
-- [ ] **Hand-rolled raw tool-use loop (throwaway exercise)**: one tool, directly against the `google-genai` SDK — message list, function-call part, execute, function-response, repeat. Purely to see the mechanism before adopting LangGraph.
+- [x] **Hand-rolled raw tool-use loop (throwaway exercise)**: one tool (`get_stock_price`, synthetic data), directly against the `google-genai` SDK — `experiments/phase4_tool_use_loop.py`. Matches the exact pattern the SDK's own internal automatic-function-calling code uses internally (confirmed by reading `_extra_utils.py`/`models.py` in the installed package): `role="user"` for the function-response turn, appending both the model's function-call turn and the response turn to `contents`. Verified against the real Gemini API for: a plain question needing no tool call, a single tool call, an error returned by the tool (model explained it gracefully rather than crashing), and multiple tool calls requested in one turn.
 - [ ] **Investigation Date derivation**: price-series click uses the clicked date as-is; fundamentals-point click uses that period's `filed_date`, not period-end.
 - [ ] **Query Intent classification node** (ADR-0003): LLM classifies Move vs. Trend from wording before any retrieval tool runs; defaults to Trend on genuinely ambiguous wording.
 - [ ] **Tool: `get_financials(ticker, quarter)`**
