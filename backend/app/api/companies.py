@@ -6,7 +6,7 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Company, CompanyAlias, PriceHistory
+from app.models import Company, CompanyAlias, FinancialMetric, PriceHistory
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -110,4 +110,60 @@ def get_company(cik: int, db: Session = Depends(get_db)) -> CompanyDetail:
         ipo_date=company.ipo_date,
         price_coverage_start=price_coverage_start,
         has_pre_2009_gap=has_pre_2009_gap,
+    )
+
+
+class PricePoint(BaseModel):
+    date: datetime.date
+    close: float
+
+
+class FundamentalPoint(BaseModel):
+    period: datetime.date
+    fiscal_year: int | None
+    fiscal_period: str | None
+    revenue: float | None
+    ebitda: float | None
+    fcf: float | None
+
+
+class CompanyTimeseries(BaseModel):
+    prices: list[PricePoint]
+    fundamentals: list[FundamentalPoint]
+
+
+@router.get("/{cik}/timeseries", response_model=CompanyTimeseries)
+def get_company_timeseries(cik: int, db: Session = Depends(get_db)) -> CompanyTimeseries:
+    """Price + fundamentals overlay data for the timeline chart (§14).
+    Returns full history — a few thousand rows per company at most, not
+    worth paginating for v1.
+    """
+    if db.get(Company, cik) is None:
+        raise HTTPException(status_code=404, detail=f"No company with CIK {cik}")
+
+    prices = db.execute(
+        select(PriceHistory.date, PriceHistory.close)
+        .where(PriceHistory.company_cik == cik)
+        .order_by(PriceHistory.date)
+    ).all()
+
+    fundamentals = db.execute(
+        select(FinancialMetric)
+        .where(FinancialMetric.company_cik == cik)
+        .order_by(FinancialMetric.period)
+    ).scalars().all()
+
+    return CompanyTimeseries(
+        prices=[PricePoint(date=p.date, close=p.close) for p in prices],
+        fundamentals=[
+            FundamentalPoint(
+                period=f.period,
+                fiscal_year=f.fiscal_year,
+                fiscal_period=f.fiscal_period,
+                revenue=f.revenue,
+                ebitda=f.ebitda,
+                fcf=f.fcf,
+            )
+            for f in fundamentals
+        ],
     )

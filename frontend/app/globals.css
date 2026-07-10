@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/* Design tokens (DESIGN.md §14): a ledger-toned "record" for one company,
+   not a generic SaaS dashboard. Both themes are fully specified, not
+   inverted from each other -- dark isn't just light-with-colors-flipped. */
+:root {
+  --color-ink: #1b1f24; /* near-black cool charcoal: primary text/structure */
+  --color-paper: #eef1f3; /* cool ledger-grey ground, not warm cream */
+  --color-surface: #f8fafb; /* panels sitting on top of paper */
+  --color-accent: #24548c; /* stamp blue: interactive elements, links, "official" tag */
+  --color-gold: #a8791f; /* reserved exclusively for the "unofficial" trust tag */
+  --color-up: #1f7a6c; /* teal: price direction only, never decorative */
+  --color-down: #b3392c; /* crimson: price direction only, never decorative */
+  --color-hairline: rgba(27, 31, 36, 0.14);
+}
+
+:root[data-theme="dark"] {
+  --color-ink: #e7e9ec;
+  --color-paper: #14171a;
+  --color-surface: #1b1f24;
+  --color-accent: #6fa8dc;
+  --color-gold: #d1a039;
+  --color-up: #4fbfa8;
+  --color-down: #e0645a;
+  --color-hairline: rgba(231, 233, 236, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-ink: #e7e9ec;
+    --color-paper: #14171a;
+    --color-surface: #1b1f24;
+    --color-accent: #6fa8dc;
+    --color-gold: #d1a039;
+    --color-up: #4fbfa8;
+    --color-down: #e0645a;
+    --color-hairline: rgba(231, 233, 236, 0.16);
+  }
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-paper: var(--color-paper);
+  --color-surface: var(--color-surface);
+  --color-accent: var(--color-accent);
+  --color-gold: var(--color-gold);
+  --color-up: var(--color-up);
+  --color-down: var(--color-down);
+  --color-hairline: var(--color-hairline);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-libre-franklin);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Hairline rules, not card-and-shadow -- echoes a ruled ledger sheet. */
+.hairline {
+  border-color: var(--color-hairline);
+}
