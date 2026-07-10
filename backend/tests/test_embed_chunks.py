@@ -48,7 +48,8 @@ def _make_news_article(db_session, cik=1) -> NewsArticle:
     db_session.merge(Company(cik=cik, ticker=f"T{cik}", name=f"Company {cik}"))
     article = NewsArticle(
         company_cik=cik,
-        finnhub_id=cik,
+        source_name="finnhub",
+        external_id=str(cik),
         published_at=datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
         headline="Headline",
         body="irrelevant",

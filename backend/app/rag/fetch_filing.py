@@ -9,14 +9,41 @@ same directory — then fetches it and strips HTML to plain text.
 
 import json
 import re
+import threading
+import time
 import urllib.request
 
 from bs4 import BeautifulSoup
 
-USER_AGENT = "CompanyFinancialAnalyst research-project your-email@example.com"
+USER_AGENT = "CompanyFinancialAnalyst research-project sid.rao2000@gmail.com"
+
+# SEC's fair-access policy allows up to 10 requests/second per requester.
+# This enforces that precisely (a sliding 1-second window, shared across
+# every caller of _get regardless of thread), rather than approximating it
+# with ad-hoc sleeps scattered across ingestion scripts -- that
+# approximation is what let bulk_8k.py trip SEC's rate limiter (HTTP 429)
+# the first time concurrency was added: per-company/per-filing delays
+# don't actually bound the real aggregate request rate once multiple
+# threads are involved. 9/sec (not the full 10) keeps a small margin for
+# clock/measurement imprecision; bulk_8k.py's 429 cooldown-and-retry
+# logic is the real safety net if this still gets hit occasionally.
+MAX_REQUESTS_PER_SECOND = 9
+_rate_limit_lock = threading.Lock()
+_recent_request_times: list[float] = []
+
+
+def _wait_for_rate_limit() -> None:
+    with _rate_limit_lock:
+        now = time.monotonic()
+        while _recent_request_times and now - _recent_request_times[0] > 1.0:
+            _recent_request_times.pop(0)
+        if len(_recent_request_times) >= MAX_REQUESTS_PER_SECOND:
+            time.sleep(max(0.0, 1.0 - (now - _recent_request_times[0])))
+        _recent_request_times.append(time.monotonic())
 
 
 def _get(url: str) -> bytes:
+    _wait_for_rate_limit()
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req) as response:
         return response.read()
@@ -66,6 +93,7 @@ def list_filings_by_form(cik: int, form: str) -> list[dict]:
     return [
         {
             "accession_number": recent["accessionNumber"][i],
+            "form": form,
             "report_date": recent["reportDate"][i],
             "filed_date": recent["filingDate"][i],
             "primary_document": recent["primaryDocument"][i],

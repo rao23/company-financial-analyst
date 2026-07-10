@@ -8,6 +8,8 @@ from app.db import Base, engine
 from app.models import (  # noqa: F401 — registers tables on Base
     Company,
     CompanyAlias,
+    EvalCase,
+    EvalResult,
     Filing,
     FilingChunk,
     FinancialMetric,

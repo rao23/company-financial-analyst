@@ -20,11 +20,17 @@ from app.rag.fetch_filing import list_filings_by_form
 
 
 def ingest_all_8ks(cik: int) -> None:
+    """Passes each filing's already-fetched metadata straight to
+    ingest_filing, sparing a redundant submissions.json re-fetch per
+    filing (see ingest_filing's docstring). Real request pacing happens
+    centrally in fetch_filing._get's rate limiter, not here -- this loop
+    itself has no delay of its own.
+    """
     filings = list_filings_by_form(cik, form="8-K")
 
     ingested = 0
     for filing in filings:
-        if ingest_filing(cik, filing["accession_number"]):
+        if ingest_filing(cik, filing["accession_number"], metadata=filing):
             ingested += 1
 
     print(f"Processed {len(filings)} 8-K filings for CIK {cik}, ingested {ingested} new.")

@@ -113,15 +113,15 @@ class TestGetNews:
     def test_returns_articles_within_range_in_chronological_order(self, db_session):
         _make_company(db_session)
         earlier = NewsArticle(
-            company_cik=1, finnhub_id=1, published_at=datetime.datetime(2024, 1, 5, tzinfo=datetime.UTC),
+            company_cik=1, source_name="finnhub", external_id="1", published_at=datetime.datetime(2024, 1, 5, tzinfo=datetime.UTC),
             headline="Earlier", body="b", source_url="https://example.com/1",
         )
         later = NewsArticle(
-            company_cik=1, finnhub_id=2, published_at=datetime.datetime(2024, 1, 20, tzinfo=datetime.UTC),
+            company_cik=1, source_name="finnhub", external_id="2", published_at=datetime.datetime(2024, 1, 20, tzinfo=datetime.UTC),
             headline="Later", body="b", source_url="https://example.com/2",
         )
         out_of_range = NewsArticle(
-            company_cik=1, finnhub_id=3, published_at=datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC),
+            company_cik=1, source_name="finnhub", external_id="3", published_at=datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC),
             headline="Old", body="b", source_url="https://example.com/3",
         )
         db_session.add_all([earlier, later, out_of_range])

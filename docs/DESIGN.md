@@ -81,7 +81,7 @@ No paid APIs. Docker Compose ties it together locally.
 - `news_articles` (company_id, published_at, headline, body, source_url, source_type=`news`, trust_level=`unofficial`)
 - `news_chunks` (article_id, chunk_text, embedding) — same chunk+embed treatment as filings, just a different `source_type`
 - `eval_cases` (company_id, investigation_date, **query_type** [move/trend], expected_cause_type, expected_source_ref, `expected_trend_start_min`, `expected_trend_start_max`, notes) — the hand-labeled test set; trend cases use the min/max range instead of a single expected date (ADR-0004)
-- `eval_results` (eval_case_id, run_id, retrieval_hit, faithfulness_score, timing_correct, **trend_start_accuracy**, run_date)
+- `eval_results` (eval_case_id, run_id, retrieval_hit, faithfulness_score, numeric_consistency, timing_correct, **trend_start_accuracy**, honesty_correct, run_date) — all six §9 metrics get a column, not just the four in this section's original list
 
 Every chunk-bearing table carries `source_type` + `trust_level` so retrieval and the agent's prompt can weight/label official vs. unofficial sources differently.
 

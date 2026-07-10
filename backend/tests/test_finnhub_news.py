@@ -49,7 +49,8 @@ def test_inserts_article_and_chunks(db_session, monkeypatch):
     ingest_news("TEST", DATE_FROM, DATE_TO)
 
     article = db_session.execute(select(NewsArticle)).scalar_one()
-    assert article.finnhub_id == 1001
+    assert article.source_name == "finnhub"
+    assert article.external_id == "1001"
     assert article.headline == "Company announces record quarter"
 
     chunks = db_session.execute(select(NewsChunk).where(NewsChunk.article_id == article.id)).scalars().all()

@@ -1,14 +1,13 @@
-"""Ingest Finnhub company news for a ticker + date range (DESIGN.md's
-Finnhub news data source), chunked and ready for embedding.
+"""Ingest Massive/Polygon news for a ticker + date range (DESIGN.md's news
+data source) -- real historical depth, unlike Finnhub's free tier, which
+only returns the last ~4 days regardless of requested range (see
+finnhub_news.py and DESIGN.md §12).
 
-Run with: python -m app.ingestion.finnhub_news AAPL 2024-01-01 2024-03-31
+Run with: python -m app.ingestion.massive_news AAPL 2021-01-01 2026-07-08
 
-Window dedup: before calling Finnhub, checks news_fetch_log for a single
-already-logged (company, date_from, date_to) row that fully covers the
-requested range, and skips the API call entirely if so -- see
-app.models.news.NewsFetchLog for why this only prevents redundant
-re-fetches, not wrong data, even though it doesn't merge overlapping
-windows.
+Follows next_url cursor pagination to get every article in range, not
+just the first page -- Polygon's next_url doesn't carry the API key over
+automatically, so it has to be re-appended on every page.
 """
 
 import datetime
@@ -25,28 +24,38 @@ from app.db import SessionLocal
 from app.models import Company, NewsArticle, NewsChunk, NewsFetchLog
 from app.rag.news_chunking import chunk_news_body
 
-FINNHUB_API_KEY = os.environ["FINNHUB_API_KEY"]
-FINNHUB_NEWS_URL = "https://finnhub.io/api/v1/company-news"
+MASSIVE_API_KEY = os.environ["MASSIVE_API_KEY"]
+MASSIVE_NEWS_URL = "https://api.polygon.io/v2/reference/news"
+PAGE_LIMIT = 1000
 
 
 def fetch_company_news(ticker: str, date_from: datetime.date, date_to: datetime.date) -> list[dict]:
     params = urllib.parse.urlencode(
         {
-            "symbol": ticker,
-            "from": date_from.isoformat(),
-            "to": date_to.isoformat(),
-            "token": FINNHUB_API_KEY,
+            "ticker": ticker,
+            "published_utc.gte": date_from.isoformat(),
+            "published_utc.lte": date_to.isoformat(),
+            "limit": PAGE_LIMIT,
+            "apiKey": MASSIVE_API_KEY,
         }
     )
-    with urllib.request.urlopen(f"{FINNHUB_NEWS_URL}?{params}") as response:
-        return json.load(response)
+    url = f"{MASSIVE_NEWS_URL}?{params}"
+
+    articles = []
+    while url:
+        with urllib.request.urlopen(url) as response:
+            data = json.load(response)
+        articles.extend(data.get("results", []))
+        next_url = data.get("next_url")
+        url = f"{next_url}&apiKey={MASSIVE_API_KEY}" if next_url else None
+    return articles
 
 
 def _window_already_fetched(db, company_cik: int, date_from: datetime.date, date_to: datetime.date) -> bool:
     covering = db.execute(
         select(NewsFetchLog).where(
             NewsFetchLog.company_cik == company_cik,
-            NewsFetchLog.source_name == "finnhub",
+            NewsFetchLog.source_name == "massive",
             NewsFetchLog.date_from <= date_from,
             NewsFetchLog.date_to >= date_to,
         )
@@ -72,25 +81,26 @@ def ingest_news(ticker: str, date_from: datetime.date, date_to: datetime.date) -
         skipped_errors = 0
 
         for item in articles:
-            if not item.get("summary"):
-                continue  # Finnhub occasionally returns placeholder/empty entries
+            if not item.get("description"):
+                continue  # occasional entries with no real summary
 
             try:
-                # A savepoint per article -- see massive_news.py for why:
-                # one bad row (an oversized field, an unexpected value)
-                # must not abort every other article fetched for this
-                # company in the same transaction.
+                # A savepoint per article: real-world international news
+                # data has surprises (e.g. one company's percent-encoded
+                # non-ASCII URL blew past a column limit) -- without this,
+                # one bad row aborts the whole transaction and silently
+                # drops every other article fetched for this company.
                 with db.begin_nested():
                     stmt = (
                         pg_insert(NewsArticle)
                         .values(
                             company_cik=company.cik,
-                            source_name="finnhub",
-                            external_id=str(item["id"]),
-                            published_at=datetime.datetime.fromtimestamp(item["datetime"], tz=datetime.UTC),
-                            headline=item["headline"][:500],
-                            body=item["summary"],
-                            source_url=item["url"][:2000],
+                            source_name="massive",
+                            external_id=item["id"],
+                            published_at=datetime.datetime.fromisoformat(item["published_utc"]),
+                            headline=item["title"][:500],
+                            body=item["description"],
+                            source_url=item["article_url"][:2000],
                         )
                         .on_conflict_do_nothing(constraint="uq_news_article_source_external_id")
                         .returning(NewsArticle.id)
@@ -99,7 +109,7 @@ def ingest_news(ticker: str, date_from: datetime.date, date_to: datetime.date) -
                     if article_id is None:
                         continue  # already ingested this article for this company
 
-                    for chunk in chunk_news_body(item["summary"]):
+                    for chunk in chunk_news_body(item["description"]):
                         db.add(
                             NewsChunk(
                                 article_id=article_id,
@@ -107,7 +117,7 @@ def ingest_news(ticker: str, date_from: datetime.date, date_to: datetime.date) -
                                 chunk_text=chunk["chunk_text"],
                             )
                         )
-                    db.flush()
+                    db.flush()  # execute the chunk inserts now, inside this savepoint
                     inserted_count += 1
             except Exception as e:
                 skipped_errors += 1
@@ -116,7 +126,7 @@ def ingest_news(ticker: str, date_from: datetime.date, date_to: datetime.date) -
         db.add(
             NewsFetchLog(
                 company_cik=company.cik,
-                source_name="finnhub",
+                source_name="massive",
                 date_from=date_from,
                 date_to=date_to,
                 fetched_at=datetime.datetime.now(tz=datetime.UTC),
@@ -134,7 +144,7 @@ def ingest_news(ticker: str, date_from: datetime.date, date_to: datetime.date) -
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python -m app.ingestion.finnhub_news <TICKER> <FROM:YYYY-MM-DD> <TO:YYYY-MM-DD>")
+        print("Usage: python -m app.ingestion.massive_news <TICKER> <FROM:YYYY-MM-DD> <TO:YYYY-MM-DD>")
         sys.exit(1)
     ingest_news(
         sys.argv[1].upper(),

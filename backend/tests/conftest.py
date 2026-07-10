@@ -25,6 +25,8 @@ from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models import (  # noqa: E402, F401 — registers every table on Base.metadata
     Company,
     CompanyAlias,
+    EvalCase,
+    EvalResult,
     Filing,
     FilingChunk,
     FinancialMetric,

@@ -17,9 +17,8 @@ from app.models import Company, CompanyAlias
 
 SEC_URL = "https://www.sec.gov/files/company_tickers.json"
 
-# SEC blocks requests without a descriptive User-Agent identifying the
-# requester. Replace the email before running this against SEC's servers.
-USER_AGENT = "CompanyFinancialAnalyst research-project your-email@example.com"
+# SEC blocks requests without a descriptive User-Agent identifying the requester.
+USER_AGENT = "CompanyFinancialAnalyst research-project sid.rao2000@gmail.com"
 
 # Curated brand-name -> legal-name mismatches (CONTEXT.md "Company Alias").
 # No amount of fuzzy string matching gets from "Google" to "Alphabet Inc." —

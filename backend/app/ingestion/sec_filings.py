@@ -18,8 +18,16 @@ from app.rag.chunking import chunk_filing
 from app.rag.fetch_filing import fetch_filing_text, get_filing_metadata
 
 
-def ingest_filing(cik: int, accession_number: str) -> bool:
-    """Returns True if a new Filing was ingested, False if it already existed."""
+def ingest_filing(cik: int, accession_number: str, metadata: dict | None = None) -> bool:
+    """Returns True if a new Filing was ingested, False if it already existed.
+
+    `metadata`, if the caller already has it (e.g. list_filings_by_form's
+    bulk listing), skips a redundant submissions.json re-fetch --
+    get_filing_metadata does its own full fetch per call, which is wasteful
+    when ingesting many filings for the same company back to back (this is
+    what caused bulk_8k.py to trip SEC's rate limiter: a company with 100
+    filings was making ~200 requests instead of ~101).
+    """
     db = SessionLocal()
     try:
         existing = db.execute(
@@ -29,7 +37,8 @@ def ingest_filing(cik: int, accession_number: str) -> bool:
             print(f"Filing {accession_number} already ingested (filing_id={existing.id}); skipping.")
             return False
 
-        metadata = get_filing_metadata(cik, accession_number)
+        if metadata is None:
+            metadata = get_filing_metadata(cik, accession_number)
         raw_text, source_url = fetch_filing_text(cik, accession_number, metadata["primary_document"])
 
         filing = Filing(
