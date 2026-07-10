@@ -96,7 +96,7 @@ class TestHappyPath:
                 _ai_message(
                     _tool_call(
                         "get_filing_chunks_tool",
-                        {"ticker": "TEST", "date_from": "2023-01-01", "date_to": "2024-12-31", "query": "anything"},
+                        {"ticker": "TEST", "date_from": "2024-01-01", "date_to": "2024-06-01", "query": "anything"},
                         "call-1",
                     )
                 ),
@@ -233,7 +233,7 @@ class TestGroundingSetAccumulation:
                 _ai_message(
                     _tool_call(
                         "get_filing_chunks_tool",
-                        {"ticker": "TEST", "date_from": "2023-01-01", "date_to": "2024-12-31", "query": "anything"},
+                        {"ticker": "TEST", "date_from": "2024-01-01", "date_to": "2024-06-01", "query": "anything"},
                         "call-1",
                     )
                 ),

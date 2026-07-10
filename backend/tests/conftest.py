@@ -23,6 +23,7 @@ from sqlalchemy import create_engine, text  # noqa: E402
 
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models import (  # noqa: E402, F401 — registers every table on Base.metadata
+    AgentAnswerCache,
     Company,
     CompanyAlias,
     EvalCase,

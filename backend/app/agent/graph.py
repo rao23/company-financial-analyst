@@ -35,7 +35,7 @@ from langgraph.graph.message import add_messages
 from app.agent import tools as agent_tools
 from app.agent.confidence import derive_confidence
 from app.agent.guardrails import InsufficientGroundingError, validate_citations
-from app.agent.prompts import build_system_prompt
+from app.agent.prompts import build_system_prompt, wrap_untrusted_text
 from app.agent.query_intent import classify_query_intent
 from app.agent.schemas import FinalAnswer, SubmitFinalAnswer
 from app.db import SessionLocal
@@ -200,6 +200,7 @@ def execute_tools_node(state: AgentState) -> dict:
             continue
 
         result = tool_fn.invoke(call["args"])
+        serialized_result = result
         if isinstance(result, list):
             retrieval_calls += 1
             for chunk in result:
@@ -207,9 +208,15 @@ def execute_tools_node(state: AgentState) -> dict:
                 if key not in grounding_set:
                     grounding_set[key] = chunk
                     new_chunks += 1
+            # Delimit only for what the model sees -- the Grounding Set above
+            # keeps raw chunk_text, since citations/eval scoring need the
+            # actual source text, not the wrapped copy.
+            serialized_result = [
+                {**chunk, "chunk_text": wrap_untrusted_text(chunk["chunk_text"])} for chunk in result
+            ]
 
         response_messages.append(
-            ToolMessage(content=json.dumps(result, default=str), tool_call_id=call["id"], name=call["name"])
+            ToolMessage(content=json.dumps(serialized_result, default=str), tool_call_id=call["id"], name=call["name"])
         )
 
     return {

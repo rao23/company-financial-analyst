@@ -1,3 +1,4 @@
+from app.models.agent_cache import AgentAnswerCache
 from app.models.company import Company, CompanyAlias
 from app.models.eval import EvalCase, EvalResult
 from app.models.filing import Filing, FilingChunk
@@ -6,6 +7,7 @@ from app.models.news import NewsArticle, NewsChunk, NewsFetchLog
 from app.models.price_history import PriceHistory
 
 __all__ = [
+    "AgentAnswerCache",
     "Company",
     "CompanyAlias",
     "EvalCase",

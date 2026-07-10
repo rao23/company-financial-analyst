@@ -95,7 +95,7 @@ class TestGetFilingChunks:
         db_session.commit()
 
         results = get_filing_chunks(
-            db_session, "TEST", datetime.date(2023, 1, 1), datetime.date(2024, 12, 31), query="anything"
+            db_session, "TEST", datetime.date(2024, 1, 1), datetime.date(2024, 6, 30), query="anything"
         )
 
         assert len(results) == 1
@@ -106,7 +106,17 @@ class TestGetFilingChunks:
 
     def test_unknown_ticker_raises(self, db_session):
         with pytest.raises(ValueError, match="No company found"):
-            get_filing_chunks(db_session, "NOPE", datetime.date(2023, 1, 1), datetime.date(2024, 1, 1), query="q")
+            get_filing_chunks(db_session, "NOPE", datetime.date(2024, 1, 1), datetime.date(2024, 6, 30), query="q")
+
+    def test_inverted_date_range_raises(self, db_session):
+        _make_company(db_session)
+        with pytest.raises(ValueError, match="must not be after"):
+            get_filing_chunks(db_session, "TEST", datetime.date(2024, 1, 1), datetime.date(2023, 1, 1), query="q")
+
+    def test_date_range_exceeding_max_width_raises(self, db_session):
+        _make_company(db_session)
+        with pytest.raises(ValueError, match="exceeds the 200-day maximum"):
+            get_filing_chunks(db_session, "TEST", datetime.date(2020, 1, 1), datetime.date(2024, 1, 1), query="q")
 
 
 class TestGetNews:
@@ -143,6 +153,16 @@ class TestGetNews:
     def test_unknown_ticker_raises(self, db_session):
         with pytest.raises(ValueError, match="No company found"):
             get_news(db_session, "NOPE", datetime.date(2024, 1, 1), datetime.date(2024, 1, 31))
+
+    def test_inverted_date_range_raises(self, db_session):
+        _make_company(db_session)
+        with pytest.raises(ValueError, match="must not be after"):
+            get_news(db_session, "TEST", datetime.date(2024, 1, 31), datetime.date(2024, 1, 1))
+
+    def test_date_range_exceeding_max_width_raises(self, db_session):
+        _make_company(db_session)
+        with pytest.raises(ValueError, match="exceeds the 200-day maximum"):
+            get_news(db_session, "TEST", datetime.date(2020, 1, 1), datetime.date(2024, 1, 1))
 
 
 class TestGetPriceContext:

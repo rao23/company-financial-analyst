@@ -83,26 +83,26 @@ Ordered by dependency — each phase builds on tables/components the previous ph
 
 ## Phase 5 — Eval Harness (merge gate from here on)
 
-- [ ] **`eval_cases` / `eval_results` schema**: `query_type` (move/trend), `expected_trend_start_min`/`max` for trend cases
-- [ ] **Hand-label 15–20 eval cases**, including at least: one litigation case, one competitor-driven case, one Move "no clear cause" case, one Trend "no clear cause" case
-- [ ] **Retrieval recall@k** (programmatic)
-- [ ] **Faithfulness** (LLM-as-judge): every claim traces to a retrieved chunk
-- [ ] **Numeric consistency** (programmatic): cited numbers match `financial_metrics`
-- [ ] **Timing-awareness** (LLM-as-judge, custom rubric): correct lag; extended for Trend cases to check the reversal cause isn't misattributed to earlier unrelated news inside the window
-- [ ] **Trend Start Accuracy** (programmatic, ADR-0004): computed Trend Start falls within the hand-labeled tolerance range — not judged
-- [ ] **Honesty-on-no-cause**: correct decline-to-fabricate on both Move and Trend "no clear cause" cases
-- [ ] **Wire the offline suite as a merge gate**: run on every prompt/retrieval-logic/model change before calling it an improvement
+- [x] **`eval_cases` / `eval_results` schema**: `query_type` (move/trend), `expected_trend_start_min`/`max` for trend cases
+- [x] **Hand-label eval cases**, including at least: one litigation case, one competitor-driven case, one Move "no clear cause" case, one Trend "no clear cause" case — **11 real, verified cases seeded (short of the 15–20 target; stopped there rather than pad with unverified ones — more can be added via `app.eval.label_case`)**
+- [x] **Retrieval recall@k** (programmatic)
+- [x] **Faithfulness** (LLM-as-judge): every claim traces to a retrieved chunk
+- [x] **Numeric consistency** (programmatic): cited numbers match `financial_metrics`
+- [x] **Timing-awareness** (LLM-as-judge, custom rubric): correct lag; extended for Trend cases to check the reversal cause isn't misattributed to earlier unrelated news inside the window
+- [x] **Trend Start Accuracy** (programmatic, ADR-0004): computed Trend Start falls within the hand-labeled tolerance range — not judged
+- [x] **Honesty-on-no-cause**: correct decline-to-fabricate on both Move and Trend "no clear cause" cases
+- [ ] **Wire the offline suite as a merge gate**: harness (`app.eval.harness`) is built and unit-tested, but hasn't yet been run end-to-end against the real 11 cases — blocked on the filing/news embedding backlog (retrieval returns nothing until chunks are embedded). Run once `embed_chunks.py` completes.
 
 ---
 
 ## Phase 6 — Guardrails & Application Architecture
 
-- [ ] **Structured output schema**: Pydantic model for `{explanation, citations, lag_days, confidence}`
-- [ ] **`confidence` rubric** (ADR-0007): deterministic function of window tier resolved, primary citation's `trust_level`, and magnitude match — not LLM self-reported; distinct from the Honesty-on-no-cause case, not its lowest bucket
-- [ ] **Citation existence check** (ADR-0006/0009): every `source_id` validated against the current Investigation Thread's Grounding Set; reject to "insufficient grounding" on miss
-- [ ] **Input validation**: ticker/company must resolve to a real `companies` row before any tool executes; date ranges bounded
-- [ ] **Untrusted-text delimiting**: filing/news text wrapped in clear delimiters in the prompt, so ingested text can't be read as an instruction
-- [ ] **Caching per (company_id, Investigation Date)**: avoid recomputing an already-answered investigation
+- [x] **Structured output schema**: Pydantic model for `{explanation, citations, lag_days, confidence}` — built during Phase 4 (`app/agent/schemas.py`)
+- [x] **`confidence` rubric** (ADR-0007): deterministic function of window tier resolved, primary citation's `trust_level`, and magnitude match — not LLM self-reported; distinct from the Honesty-on-no-cause case, not its lowest bucket — built during Phase 4 (`app/agent/confidence.py`)
+- [x] **Citation existence check** (ADR-0006/0009): every `source_id` validated against the current Investigation Thread's Grounding Set; reject to "insufficient grounding" on miss — built during Phase 4 (`app/agent/guardrails.py`)
+- [x] **Input validation**: ticker/company must resolve to a real `companies` row before any tool executes (Phase 4); date ranges bounded — `MAX_DATE_RANGE_DAYS=200` + inverted-range check added in `app/agent/tools.py`
+- [x] **Untrusted-text delimiting**: filing/news text wrapped in clear delimiters in the prompt, so ingested text can't be read as an instruction — `wrap_untrusted_text()` existed in `prompts.py` since Phase 4 but was never actually called; wired into `execute_tools_node` (graph.py) so tool-result chunk_text is delimited for the model while the Grounding Set keeps raw text for citations/eval
+- [x] **Caching per (company_id, Investigation Date)**: avoid recomputing an already-answered investigation — `app/agent/cache.py`'s `get_cached_or_run_agent`, keyed on `(company, date, question, prompt_version)`; only caches the first call in an Investigation Thread, follow-ups always bypass it; not used by the eval harness (needs fresh runs)
 
 ---
 

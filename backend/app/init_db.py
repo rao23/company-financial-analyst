@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from app.db import Base, engine
 from app.models import (  # noqa: F401 — registers tables on Base
+    AgentAnswerCache,
     Company,
     CompanyAlias,
     EvalCase,

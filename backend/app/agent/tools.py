@@ -26,6 +26,22 @@ TREND_REVERSAL_THRESHOLD_PCT = 0.05
 
 _QUARTER_PATTERN = re.compile(r"^(\d{4})(Q[1-4]|FY)$")
 
+# DESIGN.md §10 "date range params are bounded" -- comfortably above the
+# widest real expanding-window tier (180 days) so it never blocks a
+# legitimate retry, but stops a malformed or (post prompt-injection)
+# adversarially-induced tool call from running an unbounded, unfocused
+# retrieval that defeats the "always metadata-filter before ANN" invariant.
+MAX_DATE_RANGE_DAYS = 200
+
+
+def _validate_date_range(date_from: datetime.date, date_to: datetime.date) -> None:
+    if date_from > date_to:
+        raise ValueError(f"date_from ({date_from}) must not be after date_to ({date_to})")
+    if (date_to - date_from).days > MAX_DATE_RANGE_DAYS:
+        raise ValueError(
+            f"date range ({date_from} to {date_to}) exceeds the {MAX_DATE_RANGE_DAYS}-day maximum"
+        )
+
 
 def _get_company_by_ticker(db: Session, ticker: str) -> Company:
     company = db.execute(select(Company).where(Company.ticker == ticker.upper())).scalar_one_or_none()
@@ -88,6 +104,7 @@ def get_filing_chunks(
     """Company+date-range-filtered, then ranked by embedding similarity to
     `query` -- see app.rag.retrieval.search_filing_chunks. source_type is
     always "filing"/"official"."""
+    _validate_date_range(date_from, date_to)
     company = _get_company_by_ticker(db, ticker)
     chunks = search_filing_chunks(db, company.cik, query, date_from, date_to, top_k=top_k)
     return [
@@ -114,6 +131,7 @@ def get_news(db: Session, ticker: str, date_from: datetime.date, date_to: dateti
     which deliberately has no `query` parameter. source_type is always
     "news"/"unofficial".
     """
+    _validate_date_range(date_from, date_to)
     company = _get_company_by_ticker(db, ticker)
     stmt = (
         select(NewsChunk, NewsArticle)
