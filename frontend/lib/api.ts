@@ -36,6 +36,23 @@ export type CompanyTimeseries = {
   fundamentals: FundamentalPoint[];
 };
 
+export type SourceType = "filing" | "news";
+
+export type Citation = {
+  source_type: SourceType;
+  source_id: string;
+  quote: string;
+};
+
+export type AskResponse = {
+  explanation: string;
+  citations: Citation[];
+  lag_days: number | null;
+  confidence: number | null;
+  no_clear_cause: boolean;
+  thread_id: string;
+};
+
 async function apiFetch<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
   if (!response.ok) {
@@ -54,4 +71,26 @@ export function getCompany(cik: number): Promise<CompanyDetail> {
 
 export function getCompanyTimeseries(cik: number): Promise<CompanyTimeseries> {
   return apiFetch(`/companies/${cik}/timeseries`);
+}
+
+export async function askAgent(
+  ticker: string,
+  investigationDate: string,
+  question: string,
+  threadId?: string
+): Promise<AskResponse> {
+  const response = await fetch(`${API_BASE_URL}/agent/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker,
+      investigation_date: investigationDate,
+      question,
+      thread_id: threadId ?? null,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Request to /agent/ask failed with status ${response.status}`);
+  }
+  return response.json() as Promise<AskResponse>;
 }

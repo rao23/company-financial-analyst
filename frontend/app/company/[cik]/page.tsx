@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import CompanyHeader from "@/components/CompanyHeader";
-import TimelineChart from "@/components/TimelineChart";
+import CompanyWorkspace from "@/components/CompanyWorkspace";
 import { getCompany, getCompanyTimeseries } from "@/lib/api";
 
 export default async function CompanyPage({ params }: { params: Promise<{ cik: string }> }) {
@@ -19,12 +19,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ cik: s
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-10">
       <CompanyHeader company={company} />
-      <TimelineChart timeseries={timeseries} />
-      <section className="border-t hairline pt-4">
-        <p className="text-sm text-ink/60">
-          Click a point on the chart to ask why it moved — coming once the retrieval backlog finishes embedding.
-        </p>
-      </section>
+      <CompanyWorkspace ticker={company.ticker} timeseries={timeseries} />
     </main>
   );
 }

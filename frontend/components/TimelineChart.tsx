@@ -5,6 +5,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -42,7 +43,15 @@ function formatBillions(value: number) {
   return `$${(value / 1e9).toFixed(1)}B`;
 }
 
-export default function TimelineChart({ timeseries }: { timeseries: CompanyTimeseries }) {
+export default function TimelineChart({
+  timeseries,
+  selectedDate,
+  onDateSelect,
+}: {
+  timeseries: CompanyTimeseries;
+  selectedDate?: string | null;
+  onDateSelect?: (date: string) => void;
+}) {
   const data = mergeForChart(timeseries);
 
   if (data.length === 0) {
@@ -52,8 +61,19 @@ export default function TimelineChart({ timeseries }: { timeseries: CompanyTimes
   return (
     <div className="h-96 w-full font-mono text-xs">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          onClick={(state) => {
+            const label = state?.activeLabel;
+            if (typeof label === "string" && onDateSelect) onDateSelect(label);
+          }}
+          style={{ cursor: onDateSelect ? "pointer" : undefined }}
+        >
           <CartesianGrid stroke="var(--color-hairline)" vertical={false} />
+          {selectedDate && (
+            <ReferenceLine yAxisId="price" x={selectedDate} stroke="var(--color-accent)" strokeDasharray="4 4" />
+          )}
           <XAxis dataKey="date" tick={{ fill: "var(--color-ink)" }} minTickGap={40} />
           <YAxis
             yAxisId="price"

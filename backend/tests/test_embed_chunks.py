@@ -131,6 +131,23 @@ def test_embeds_news_chunks_missing_a_vector(db_session, monkeypatch):
     assert len(chunk.embedding) == EMBEDDING_DIM
 
 
+def test_ticker_scoping_only_embeds_the_named_companies(db_session, monkeypatch):
+    monkeypatch.setattr(embed_chunks, "SentenceTransformer", _FakeSentenceTransformer)
+    wanted_filing = _make_filing(db_session, cik=1)
+    other_filing = _make_filing(db_session, cik=2)
+    wanted_chunk = FilingChunk(filing_id=wanted_filing.id, section="Item 1", chunk_index=0, chunk_text="wanted", embedding=None)
+    other_chunk = FilingChunk(filing_id=other_filing.id, section="Item 1", chunk_index=0, chunk_text="other", embedding=None)
+    db_session.add_all([wanted_chunk, other_chunk])
+    db_session.commit()
+
+    embed_pending_chunks(tickers=["T1"])
+
+    db_session.refresh(wanted_chunk)
+    db_session.refresh(other_chunk)
+    assert wanted_chunk.embedding is not None
+    assert other_chunk.embedding is None  # out of scope -- left for a later full run
+
+
 def test_embeds_both_filing_and_news_chunks_in_one_call(db_session, monkeypatch):
     monkeypatch.setattr(embed_chunks, "SentenceTransformer", _FakeSentenceTransformer)
     filing = _make_filing(db_session)

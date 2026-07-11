@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api.agent import router as agent_router
 from app.api.companies import router as companies_router
 from app.db import get_db
 
@@ -14,11 +15,12 @@ app = FastAPI(title="Earnings Timeline AI")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 app.include_router(companies_router)
+app.include_router(agent_router)
 
 
 @app.get("/health")
